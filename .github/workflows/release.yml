@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build and attach to"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          # Strip a leading "v" for the user-facing version string.
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - name: Show toolchain
+        run: swift --version
+
+      - name: Stamp version into Info.plist
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" Resources/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" Resources/Info.plist
+
+      - name: Build Defaulter.app
+        run: ./build.sh
+
+      - name: Zip bundle
+        id: zip
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          ASSET="Defaulter-$VERSION.zip"
+          # ditto preserves the bundle's symlinks, resource forks and ad-hoc signature.
+          ditto -c -k --keepParent --sequesterRsrc build/Defaulter.app "$ASSET"
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+          shasum -a 256 "$ASSET"
+
+      - name: Attach to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.tag.outputs.tag }}" "${{ steps.zip.outputs.asset }}" --clobber
