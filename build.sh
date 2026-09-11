@@ -17,13 +17,14 @@ cp "$BIN" "$APP/Contents/MacOS/Defaulter"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
-echo "==> Generating icon"
-if swift makeicon.swift >/dev/null 2>&1 && [ -d build/AppIcon.iconset ]; then
-  iconutil -c icns build/AppIcon.iconset -o "$APP/Contents/Resources/AppIcon.icns" 2>/dev/null \
-    && echo "    icon embedded" || echo "    icon skipped (iconutil failed)"
-  rm -rf build/AppIcon.iconset
+echo "==> Compiling icon"
+# Assets.car holds the light/dark/tinted variants; AppIcon.icns is the fallback for older macOS.
+if xcrun actool Resources/AppIcon.icon --compile "$APP/Contents/Resources" \
+    --app-icon AppIcon --platform macosx --target-device mac --minimum-deployment-target 15.0 \
+    --output-partial-info-plist build/icon-partial.plist >/dev/null; then
+  echo "    icon embedded"
 else
-  echo "    icon skipped (generator failed)"
+  echo "    icon skipped (actool failed; .icon needs Xcode 26+)"
 fi
 
 echo "==> Signing (ad-hoc)"
