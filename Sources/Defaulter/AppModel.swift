@@ -65,7 +65,10 @@ final class AppModel {
     var historyGroups: [ChangeGroup] = []
 
     private let manager = Manager()
-    private var iconCache: [String: NSImage] = [:]
+    // Filled lazily from inside view bodies; observing them would invalidate
+    // every visible row each time a new entry is cached.
+    @ObservationIgnored private var iconCache: [String: NSImage] = [:]
+    @ObservationIgnored private var nameCache: [String: String] = [:]
 
     // MARK: - Loading
 
@@ -156,7 +159,15 @@ final class AppModel {
         return (owned, available)
     }
 
-    func app(named url: URL) -> String { Manager.appName(url) }
+    /// `Manager.appName` reads the bundle's Info.plist; cached because table
+    /// cells and search call it for every row.
+    func app(named url: URL) -> String {
+        let key = url.standardizedFileURL.path
+        if let cached = nameCache[key] { return cached }
+        let name = Manager.appName(url)
+        nameCache[key] = name
+        return name
+    }
 
     func icon(for url: URL?) -> NSImage {
         guard let url else { return NSWorkspace.shared.icon(for: .data) }

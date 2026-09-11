@@ -25,7 +25,7 @@ struct ByExtensionView: View {
         var matches = list.filter {
             $0.ext.contains(q)
                 || ($0.localizedDescription?.lowercased().contains(q) ?? false)
-                || (model.currentApp(forExtension: $0.ext).map { Manager.appName($0).lowercased().contains(q) } ?? false)
+                || (model.currentApp(forExtension: $0.ext).map { model.app(named: $0).lowercased().contains(q) } ?? false)
         }
         // Exact extension match always sorts to the top.
         matches.sort { a, b in
@@ -49,13 +49,6 @@ struct ByExtensionView: View {
                           localizedDescription: type.localizedDescription)
     }
 
-    /// One array backing the table. Row identity has to stay stable or the
-    /// AppKit table coordinator behind `Table` hits a precondition failure.
-    private var displayRows: [TypeRecord] {
-        if let synthesised { return [synthesised] + rows }
-        return rows
-    }
-
     var body: some View {
         HSplitView {
             listPane
@@ -66,7 +59,12 @@ struct ByExtensionView: View {
     }
 
     private var listPane: some View {
-        VStack(spacing: 0) {
+        // Filter/sort once per render, not once per use below.
+        let shown = rows
+        // One array backing the table. Row identity has to stay stable or the
+        // AppKit table coordinator behind `Table` hits a precondition failure.
+        let displayRows = synthesised.map { [$0] + shown } ?? shown
+        return VStack(spacing: 0) {
             SearchField(prompt: "Search extension, kind or app",
                         text: $search, focus: $searchFocused)
             Table(displayRows, selection: $selection) {
@@ -108,7 +106,7 @@ struct ByExtensionView: View {
                 Toggle("Split only", isOn: $onlySplit)
                 Toggle("Unassigned only", isOn: $onlyUnhandled)
                 Spacer()
-                Text("\(rows.count) of \(model.catalog.types.count)")
+                Text("\(shown.count) of \(model.catalog.types.count)")
                     .font(.caption).foregroundStyle(.secondary)
             }
             .toggleStyle(.checkbox)

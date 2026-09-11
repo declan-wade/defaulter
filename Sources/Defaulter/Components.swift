@@ -16,7 +16,7 @@ struct AppLabel: View {
                 .frame(width: size, height: size)
             if let url {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(Manager.appName(url))
+                    Text(model.app(named: url))
                     if showPath {
                         Text(url.deletingLastPathComponent().path)
                             .font(.caption2)
